@@ -19,6 +19,8 @@ For propositional variable p, p or ~p is a literal.
 
 Moreover, it is known that 3-SAT (Satisfiability problem over CNF form where each clauses contains at most 3 literals) is NP-Complete.
 
+Specifically, for every formula, there exists equisatisfiable 3-SAT formula that can be computed in polynomial time.
+
 ## Polynomial Time solvable SAT
 These are list of polynomial time solvable SAT problems.
 
