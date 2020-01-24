@@ -277,3 +277,5 @@ TSWLatexianTemp*
 
 # IntelliJ
 *.idea
+*.class
+*.kotlin_module
