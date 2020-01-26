@@ -277,5 +277,11 @@ TSWLatexianTemp*
 
 # IntelliJ
 *.idea
+
+# Compiled
+classes/*
 *.class
 *.kotlin_module
+
+# test CNF
+*.cnf

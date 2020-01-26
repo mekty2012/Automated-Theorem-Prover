@@ -7,16 +7,23 @@ data class Neg(val f:PropFormula) : PropFormula()
 data class And(val lf:List<PropFormula>) : PropFormula()
 data class Or(val lf:List<PropFormula>) : PropFormula()
 
-typealias CNF = List<List<Pair<Int, Boolean>>>
+typealias Clause = List<Pair<Int, Boolean>>
+typealias CNF = List<Clause>
+typealias State = Map<Int, Boolean>
 
-fun eval(st:Map<Int, Boolean>, f:PropFormula) : Boolean = when (f) {
+fun eval(st:State, f:PropFormula) : Boolean = when (f) {
   is Var -> st.getOrElse(f.n) {throw java.lang.IllegalArgumentException("Variable ${f.n} uninitialized.")}
   is Neg -> !eval(st, f.f)
   is And -> f.lf.all {eval(st, it)}
   is Or -> f.lf.any {eval(st, it)}
 }
 
-fun eval(st:Map<Int, Boolean>, f:CNF) : Boolean =
+fun evalClause(st:State, f:Clause) : Boolean =
+  f.any {
+    st.getOrElse(it.first, {throw java.lang.IllegalArgumentException("Variable ${it.first} uninitialized.")}) == it.second
+  }
+
+fun eval(st:State, f:CNF) : Boolean =
   f.all {
     it.any {
       st.getOrElse(it.first, {throw java.lang.IllegalArgumentException("Variable ${it.first} uninitialized.")}) == it.second
@@ -65,7 +72,7 @@ fun pushNeg(f:PropFormula, curr:Boolean): PropFormula {
   }
 }
 
-fun deserialize(fileName:String) : CNF {
+fun deserialize(fileName:String) : Pair<CNF, Int> {
   val file = File(fileName).readLines()
   var formula = mutableListOf(listOf<Pair<Int, Boolean>>())
   var info : List<String>? = null
@@ -76,20 +83,53 @@ fun deserialize(fileName:String) : CNF {
       continue
     }
     if (info == null && text.startsWith("p")) {
-      info = text.split(" ")
+      info = text.split(Regex("""\s+"""))
+      break
     }
   }
   if (info == null) {
     throw java.lang.IllegalArgumentException("File $fileName doesn't contains any cnf form")
   }
+  println(info.joinToString())
   val nvar = info[2].toInt()
   val nclause = info[3].toInt()
   for (j in count until (count + nclause)) {
-    val text = file[j]
-    val clause = text.split(" ")
+    val text = file[j].trim{it == ' '}
+    val clause = text.split(Regex("""\s+"""))
     formula.add(clause.map{
       abs(it.toInt()) to (it.toInt() > 0)
     })
   }
-  return formula
+  return formula to nvar
 }
+
+fun removeDuplicate(f:CNF):CNF {
+  f.map{it.toSet().toList()}
+}
+
+fun isHorn(f:CNF): Boolean = f.all { it.count {it.second} <= 1 }
+
+fun solveHorn(f:CNF, nvar:Int) : State? {
+  val state = mutableMapOf<Int, Boolean>()
+  for (i in 1..nvar) {state[i] = false}
+  while (true) {
+    for (clause in f) {
+      if (evalClause(state, clause)) {
+        continue
+      }
+      else {
+        val res = clause.indexOfFirst{it.second}
+        if (res == -1) {
+          return null
+        }
+        else {
+          state[res] = true
+          break
+        }
+      }
+    }
+  }
+}
+
+fun is2CNF(f:CNF) : Boolean = f.all { it.size <= 2 }
+

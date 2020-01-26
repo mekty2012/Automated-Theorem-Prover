@@ -21,6 +21,8 @@ Moreover, it is known that 3-SAT (Satisfiability problem over CNF form where eac
 
 Specifically, for every formula, there exists equisatisfiable 3-SAT formula that can be computed in polynomial time.
 
+For examples of CNF problem sets, refer [here](https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html).
+
 ## Polynomial Time solvable SAT
 These are list of polynomial time solvable SAT problems.
 
