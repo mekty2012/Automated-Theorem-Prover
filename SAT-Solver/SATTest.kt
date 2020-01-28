@@ -39,5 +39,11 @@ class PropFormulaTest {
   fun deserealizeTest() {
     deserialize("tests/uf75-325/uf75-01.cnf")
   }
+
+  /*
+   * TODO :
+   *        Add tests for preprocessing functions.
+   *        Add tests for polynomial solvable cases.
+   */
 }
 

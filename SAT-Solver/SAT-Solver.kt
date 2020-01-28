@@ -11,6 +11,7 @@ typealias Clause = List<Pair<Int, Boolean>>
 typealias CNF = List<Clause>
 typealias State = Map<Int, Boolean>
 
+// Given total state and formula, evaluates. This takes Poly Time.
 fun eval(st:State, f:PropFormula) : Boolean = when (f) {
   is Var -> st.getOrElse(f.n) {throw java.lang.IllegalArgumentException("Variable ${f.n} uninitialized.")}
   is Neg -> !eval(st, f.f)
@@ -18,11 +19,11 @@ fun eval(st:State, f:PropFormula) : Boolean = when (f) {
   is Or -> f.lf.any {eval(st, it)}
 }
 
+// Given total state and clause, evaluates.
 fun evalClause(st:State, f:Clause) : Boolean =
-  f.any {
-    st.getOrElse(it.first, {throw java.lang.IllegalArgumentException("Variable ${it.first} uninitialized.")}) == it.second
-  }
+  f.any { st.getOrElse(it.first, {throw java.lang.IllegalArgumentException("Variable ${it.first} uninitialized.")}) == it.second }
 
+// Given total state and CNF-formula, evaluates.
 fun eval(st:State, f:CNF) : Boolean =
   f.all {
     it.any {
@@ -30,6 +31,7 @@ fun eval(st:State, f:CNF) : Boolean =
     }
   }
 
+// This function tests whether function is CNF or not.
 fun isCNF(f:PropFormula) : Boolean = when (f) {
   is And ->
     f.lf.all {
@@ -53,6 +55,7 @@ fun isCNF(f:PropFormula) : Boolean = when (f) {
   }
 }
 
+// By applying de morgan's law push negation into innermost case.
 fun pushNeg(f:PropFormula, curr:Boolean): PropFormula {
   return if (curr) {
     when (f) {
@@ -72,6 +75,7 @@ fun pushNeg(f:PropFormula, curr:Boolean): PropFormula {
   }
 }
 
+// Read "*.cnf" form file, returns CNF form and number of variable.
 fun deserialize(fileName:String) : Pair<CNF, Int> {
   val file = File(fileName).readLines()
   var formula = mutableListOf(listOf<Pair<Int, Boolean>>())
@@ -103,16 +107,48 @@ fun deserialize(fileName:String) : Pair<CNF, Int> {
   return formula to nvar
 }
 
-fun removeDuplicate(f:CNF):CNF {
-  f.map{it.toSet().toList()}
+// Preprocess CNF form, removing same variable in single cluase.
+fun removeDuplicate(f:CNF):CNF = f.map{it.toHashSet().toList()}
+
+// Helper function for removeTrue. Check if whether this clause contains p and ~p.
+fun isRemovable(c:Clause):Boolean {
+  val map = mutableMapOf<Int, Boolean>()
+  for (pair in c) {
+    if (map.getOrPut(pair.first, {pair.second}) != pair.second) {
+      return true
+    }
+  }
+  return false
 }
 
+// Remove trivial clauses, containing p and ~p.
+fun removeTrue(f:CNF):CNF = f.filter { isRemovable(it) }
+
+// Find variables that appears only positive or only negative, and return state that satisfies all of them.
+fun findTrivial(f:CNF) : State {
+  val map = mutableMapOf<Int, Pair<Boolean, Boolean>>()
+  for (clause in f) {
+    for (pair in clause) {
+      if (pair.second) {
+        map[pair.first] = true to map.getOrDefault(pair.first, false to false).second
+      }
+      else {
+        map[pair.first] = map.getOrDefault(pair.first, false to false).first to true
+      }
+    }
+  }
+  return map.filter({!(it.value.first && it.value.second)}).mapValues({it.value.first})
+}
+
+// Check whether the formula is Horm formula or not.
 fun isHorn(f:CNF): Boolean = f.all { it.count {it.second} <= 1 }
 
+// Warning : This function requires input to be Horn formula. For non-Horn formula, it may not terminate.
+// If input is horn formula, it returns partial mapping or null. Partial mapping is minimal solution, and null means result is UNSAT.
 fun solveHorn(f:CNF, nvar:Int) : State? {
   val state = mutableMapOf<Int, Boolean>()
   for (i in 1..nvar) {state[i] = false}
-  while (true) {
+  global@while (true) {
     for (clause in f) {
       if (evalClause(state, clause)) {
         continue
@@ -124,12 +160,62 @@ fun solveHorn(f:CNF, nvar:Int) : State? {
         }
         else {
           state[res] = true
-          break
+          continue@global
         }
       }
     }
+    break
   }
+  return state
 }
 
+// Checkes if formula is 2-CNF.
 fun is2CNF(f:CNF) : Boolean = f.all { it.size <= 2 }
 
+val pairToIndex = {n:Int, b:Boolean -> 2 * (n - 1) + (if (b) 0 else 1) }
+
+fun solve2CNF(f:CNF, nvar:Int) : State? {
+  val adjMatrix = List(nvar, {List(nvar, {false}).toMutableList()})
+  for (clause in f) {
+    if (clause.size == 2) {
+      val (first, second) = clause
+      adjMatrix[pairToIndex(first.first, !first.second)][pairToIndex(second.first, second.second)] = true
+      adjMatrix[pairToIndex(second.first, !second.second)][pairToIndex(first.first, first.second)] = true
+    }
+    else if (clause.size == 1) {
+      // In this case, we view clause p as p \/ p.
+      val first = clause[0]
+      adjMatrix[pairToIndex(first.first, !first.second)][pairToIndex(first.first, first.second)] = true
+    }
+  }
+  // To create transitive closure of directed graph, we use floyd warshall algorithm.
+  for (k in 0 until adjMatrix.size) {
+    for (i in 0 until adjMatrix.size) {
+      for (j in 0 until adjMatrix.size) {
+        adjMatrix[i][j] = adjMatrix[i][k] && adjMatrix[k][j]
+      }
+    }
+  }
+  val result = mutableMapOf<Int, Boolean>()
+  for (v in 1..nvar) {
+    val vTonv = adjMatrix[pairToIndex(v, true)][pairToIndex(v, false)]
+    val nvTov = adjMatrix[pairToIndex(v, false)][pairToIndex(v, true)]
+    if (vTonv && nvTov) {
+      return null
+    }
+    else if (vTonv) {
+      result[v] = false
+    }
+    else if (nvTov) {
+      result[v] = true
+    }
+  }
+  return result
+}
+
+/*
+ * TODO :
+ *        Add Walk-SAT solver
+ *        Add DPLL based solver
+ *        Add exhaustive solver
+ */

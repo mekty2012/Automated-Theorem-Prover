@@ -28,12 +28,19 @@ These are list of polynomial time solvable SAT problems.
 
 A CNF Formula is Horn formula if each clauses contain at most one positive literals.
 
-TODO : Add algorithm for Horn Formula Solving
+Since Horn formula can written as (p /\ q /\ r) -> s, where s is only positive literal 
+we can force the partial state to fulfill formula. If it does not contain positive literal, 
+we can view it as (p /\ q /\ r) -> False. 
 
 A CNF Formula is 2-CNF if each clauses contain at most two literals.
 
-TODO : Add algorithm for 2-CNF solving.
+First create implication graph, where each node are literals and there exists edge iff ~ L1 \/ L2 or 
+L1 \/ ~L2 exists. Then 2-CNF's satisfiability is equivalent to consistency of implication graph, where
+consistency of implication graph means that there is no cycle that p -> ... -> ~p -> ... -> p happens.
 
+A Formula is X-SAT if it is conjunction of clauses, where each clause are composed with XOR. 
+
+X-SAT is solvable by changing SAT to system of linear equation problem, over Z_2.
 ## SAT-solver
 
 ### Walk-SAT
@@ -42,6 +49,6 @@ Walk SAT is randomized algorithm that solves SAT problem. The existence of Walk 
 TODO : Add algorithm of Walk-SAT
 
 ### DPLL algorithm
-DPLL algorithm solves SAT problem, but highly practical. It doesn't break P =!= NP, however it shows good results in many cases. 
+DPLL algorithm solves SAT problem, but highly tractable. It doesn't break P =!= NP, however it shows good results in many cases. 
 
 TODO : Add algorithm of DPLL
