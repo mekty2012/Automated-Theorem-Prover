@@ -214,8 +214,57 @@ fun solve2CNF(f:CNF, nvar:Int) : State? {
 }
 
 /*
- * TODO :
- *        Add Walk-SAT solver
- *        Add DPLL based solver
- *        Add exhaustive solver
+ *  Walk-SAT is randomized algorithm solving SAT problem.
+ *  First, we initialize mapping, with every variable to false.
+ *  We then execute following loop for given step.
+ *  In each step of loop, first we check whether formula is satisfied or
+ *  there exists some clauses not satisfied under current state.
+ *  If already satisfied, return current state.
+ *  If not, randomly choose one clause, and again randomly choose one
+ *  variable in that clause, and flip the sign of that variable.
+ *
+ *  If result is null, Walk-SAT couldn't find solution, which doesn't
+ *  mean that this formula is unsatisfiable.
  */
+fun walkSAT(f:CNF, step:Int, nvar:Int, random:java.util.Random): State? {
+  var current = mutableMapOf<Int, Boolean>()
+  for (i in 1..nvar) {current[i] = false}
+  glob@for (currStep in 1..step) {
+    val failed : List<Clause> = f.filter{!evalClause(current, it)}
+    if (failed.size == 0) {
+      return current
+    }
+    else {
+      val clauseIndex = random.nextInt(failed.size)
+      val chosenClause = failed[clauseIndex]
+      val varIndex = random.nextInt(chosenClause.size)
+      val chosenVar = chosenClause[varIndex].first
+      current[chosenVar] = !current[chosenVar]!!
+    }
+  }
+  return null
+}
+
+typealias PartState = MutableMap<Int, Pair<Boolean, Int>>
+
+fun dpllSAT(f:CNF,
+            variableChooser:(CNF, PartState) -> Int): State? {
+  val curr = mutableMapOf<Int, Pair<Boolean, Int>>()
+  val evalIndexList = mutableListOf<Int>()
+  TODO()
+}
+
+fun partialEvalClause(c:Clause, ps:PartState) : Clause? {
+  if (c.any {ps.containsKey(it.first) && (ps[it.first]?.first == it.second)}) return null
+  return c.filter {!ps.containsKey(it.first)}
+}
+
+// Perform single unit propagation.
+fun unitPropagation(f:CNF, ps:PartState, evalList:List<Int>):PartState {
+  var result = mutableMapOf<Int, Pair<Boolean, Int>>()
+  for ((i, c) in f.withIndex()) {
+    val res = partialEvalClause(c, ps)
+    TODO()
+  }
+  return result
+}
