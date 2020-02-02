@@ -230,7 +230,7 @@ fun walkSAT(f:CNF, step:Int, nvar:Int, random:java.util.Random): State? {
   var current = mutableMapOf<Int, Boolean>()
   for (i in 1..nvar) {current[i] = false}
   glob@for (currStep in 1..step) {
-    val failed : List<Clause> = f.filter{!evalClause(current, it)}
+    val failed = f.filter{!evalClause(current, it)}
     if (failed.size == 0) {
       return current
     }
@@ -245,26 +245,102 @@ fun walkSAT(f:CNF, step:Int, nvar:Int, random:java.util.Random): State? {
   return null
 }
 
+/*
+ * Part State is partial mapping from variable to value,
+ * where it also stores information of learning.
+ * If the second value is 0, the variable is chosen.
+ * If the second value is n != 0, the variable is learned from n-th clause.
+ * This Type is used on learning based DPLL.
+ */
 typealias PartState = MutableMap<Int, Pair<Boolean, Int>>
+typealias ConflictInfo = List<Int>
 
+/*
+ * DPLL algorithm - https://en.wikipedia.org/wiki/DPLL_algorithm
+ * For flexivity, variable chooser is given as input.
+ *
+ * First, we initialize empty partial state mapping.
+ * Then until no more propagation is performed, do unit propagation and pure literal elimination.
+ * If there is no more propagation, choose new branching variable with given variableChooser.
+ * Then recursively call itself with chosen one to true/false mapped.
+ */
 fun dpllSAT(f:CNF,
-            variableChooser:(CNF, PartState) -> Int): State? {
-  val curr = mutableMapOf<Int, Pair<Boolean, Int>>()
-  val evalIndexList = mutableListOf<Int>()
-  TODO()
+            s:State,
+            variableChooser:(CNF, State) -> Int): State? {
+  val curr = s.toMutableMap()
+  while (true) {
+    var noPropagation = true
+    val unitRes = unitPropagation(f, curr)
+    if (unitRes.size != 0) {
+      noPropagation = false
+      curr.putAll(unitRes)
+    }
+    val pureRes = pureLiteralElimination(f, curr)
+    if (pureRes.size != 0) {
+      noPropagation = false
+      curr.putAll(pureRes)
+    }
+    if (noPropagation) {
+      break
+    }
+  }
+  val chosen = variableChooser(f, curr)
+  val first = dpllSAT(f, curr + (chosen to true), variableChooser)
+  if (first == null) {
+    return dpllSAT(f, curr + (chosen to false), variableChooser)
+  }
+  else {return first}
 }
 
-fun partialEvalClause(c:Clause, ps:PartState) : Clause? {
-  if (c.any {ps.containsKey(it.first) && (ps[it.first]?.first == it.second)}) return null
+/*
+ * This function partially evaluate clause.
+ * If clause is satisfied, -there exists true literal- return null.
+ * If cluase is unsatisfied, it eliminates false evaluated literals, and only returns non evaluated literals.
+ * Note that when clause is conflict -every literal is false-, it returns empty clause.
+ */
+fun partialEvalClause(c:Clause, ps:State) : Clause? {
+  if (c.any {ps.containsKey(it.first) && (ps[it.first]!! == it.second)}) return null
   return c.filter {!ps.containsKey(it.first)}
 }
 
-// Perform single unit propagation.
-fun unitPropagation(f:CNF, ps:PartState, evalList:List<Int>):PartState {
-  var result = mutableMapOf<Int, Pair<Boolean, Int>>()
-  for ((i, c) in f.withIndex()) {
+/*
+ * If some clause is {p} or {~p}, the only way to satisfy total formula is
+ * assigning p to true or false, resp.
+ * So this function partially evaluate each clause, then if the result is
+ * unit clause -{p} or {~p}-, it assign p to true or false.
+ * Note that this function only performs single unit propagation, so after
+ * this function there still could exists unit clause.
+ *
+ * This function returns propagated variables, not merged state.
+ */
+fun unitPropagation(f:CNF, ps:State):State {
+  var result = mutableMapOf<Int, Boolean>()
+  for (c in f) {
     val res = partialEvalClause(c, ps)
-    TODO()
+    if (res?.size == 1) {
+      val propagated = res[0]
+      result[propagated.first] = propagated.second
+    }
   }
   return result
+}
+
+/*
+ * If some variable only appears true or false, it is okay to assume that
+ * variable is true or false, resp.
+ * So this function founds such pure literals, and return those as partstate.
+ */
+fun pureLiteralElimination(f:CNF, ps:State):State {
+  var checker = mutableMapOf<Int, Boolean?>()
+  for (c in f) {
+    val res = partialEvalClause(c, ps)
+    if (res != null) {
+      for (l in res) {
+        if (checker.getOrPut(l.first, {l.second}) != l.second) {
+          checker[l.first] = null
+        }
+      }
+    }
+  }
+  return checker.filterValues{it != null}.mapValues{it.value!!}
 }
