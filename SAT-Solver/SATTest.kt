@@ -44,6 +44,7 @@ class PropFormulaTest {
    * TODO :
    *        Add tests for preprocessing functions.
    *        Add tests for polynomial solvable cases.
+   *        Add tests for DPLL SAT-solver
    */
 }
 

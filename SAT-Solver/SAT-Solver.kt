@@ -344,3 +344,7 @@ fun pureLiteralElimination(f:CNF, ps:State):State {
   }
   return checker.filterValues{it != null}.mapValues{it.value!!}
 }
+
+/*
+ * TODO : Add CS402 version DPLL algorithm
+ */
