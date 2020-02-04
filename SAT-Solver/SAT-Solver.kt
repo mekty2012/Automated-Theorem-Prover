@@ -75,6 +75,8 @@ fun pushNeg(f:PropFormula, curr:Boolean): PropFormula {
   }
 }
 
+// TODO : Arbitrary formula to equisatisfiable CNF
+
 // Read "*.cnf" form file, returns CNF form and number of variable.
 fun deserialize(fileName:String) : Pair<CNF, Int> {
   val file = File(fileName).readLines()
@@ -214,6 +216,19 @@ fun solve2CNF(f:CNF, nvar:Int) : State? {
 }
 
 /*
+ * Resolution is one of proof method in Propositional Logic.
+ * For two clause (C_1 \/ r) and (C_2 \/ ~r), we have
+ * (C_1 \/ r) /\ (C_2 \/ ~r) => (C_1 \/ C_2)
+ */
+fun resolution(first:Clause, second:Clause, p:Int) : Clause {
+  if (first.contains(p to true) && second.contains(p to false)) {
+    return ((first - (p to true)) + (second - (p to false))).toSet().toList()
+  } else {
+    throw IllegalArgumentException("Resolution requires first clause to contains p, second clause to contains ~p")
+  }
+}
+
+/*
  *  Walk-SAT is randomized algorithm solving SAT problem.
  *  First, we initialize mapping, with every variable to false.
  *  We then execute following loop for given step.
@@ -246,16 +261,6 @@ fun walkSAT(f:CNF, step:Int, nvar:Int, random:java.util.Random): State? {
 }
 
 /*
- * Part State is partial mapping from variable to value,
- * where it also stores information of learning.
- * If the second value is 0, the variable is chosen.
- * If the second value is n != 0, the variable is learned from n-th clause.
- * This Type is used on learning based DPLL.
- */
-typealias PartState = MutableMap<Int, Pair<Boolean, Int>>
-typealias ConflictInfo = List<Int>
-
-/*
  * DPLL algorithm - https://en.wikipedia.org/wiki/DPLL_algorithm
  * For flexivity, variable chooser is given as input.
  *
@@ -266,7 +271,7 @@ typealias ConflictInfo = List<Int>
  */
 fun dpllSAT(f:CNF,
             s:State,
-            variableChooser:(CNF, State) -> Int): State? {
+            variableChooser:(CNF, State) -> Pair<Int, Boolean>): State? {
   val curr = s.toMutableMap()
   while (true) {
     var noPropagation = true
@@ -284,10 +289,13 @@ fun dpllSAT(f:CNF,
       break
     }
   }
+  val evaled = f.map{partialEval(it, curr)}
+  if (evaled.all{it == null}) return curr
+  if (evaled.all{it?.isEmpty() ?: false}) return null
   val chosen = variableChooser(f, curr)
-  val first = dpllSAT(f, curr + (chosen to true), variableChooser)
+  val first = dpllSAT(f, curr + (chosen.first to chosen.second), variableChooser)
   if (first == null) {
-    return dpllSAT(f, curr + (chosen to false), variableChooser)
+    return dpllSAT(f, curr + (chosen.first to chosen.second), variableChooser)
   }
   else {return first}
 }
@@ -298,7 +306,7 @@ fun dpllSAT(f:CNF,
  * If cluase is unsatisfied, it eliminates false evaluated literals, and only returns non evaluated literals.
  * Note that when clause is conflict -every literal is false-, it returns empty clause.
  */
-fun partialEvalClause(c:Clause, ps:State) : Clause? {
+fun partialEval(c:Clause, ps:State) : Clause? {
   if (c.any {ps.containsKey(it.first) && (ps[it.first]!! == it.second)}) return null
   return c.filter {!ps.containsKey(it.first)}
 }
@@ -316,7 +324,7 @@ fun partialEvalClause(c:Clause, ps:State) : Clause? {
 fun unitPropagation(f:CNF, ps:State):State {
   var result = mutableMapOf<Int, Boolean>()
   for (c in f) {
-    val res = partialEvalClause(c, ps)
+    val res = partialEval(c, ps)
     if (res?.size == 1) {
       val propagated = res[0]
       result[propagated.first] = propagated.second
@@ -333,7 +341,7 @@ fun unitPropagation(f:CNF, ps:State):State {
 fun pureLiteralElimination(f:CNF, ps:State):State {
   var checker = mutableMapOf<Int, Boolean?>()
   for (c in f) {
-    val res = partialEvalClause(c, ps)
+    val res = partialEval(c, ps)
     if (res != null) {
       for (l in res) {
         if (checker.getOrPut(l.first, {l.second}) != l.second) {
@@ -344,7 +352,3 @@ fun pureLiteralElimination(f:CNF, ps:State):State {
   }
   return checker.filterValues{it != null}.mapValues{it.value!!}
 }
-
-/*
- * TODO : Add CS402 version DPLL algorithm
- */

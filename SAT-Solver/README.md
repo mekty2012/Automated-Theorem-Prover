@@ -46,9 +46,11 @@ X-SAT is solvable by changing SAT to system of linear equation problem, over Z_2
 ### Walk-SAT
 Walk SAT is randomized algorithm that solves SAT problem. The existence of Walk SAT implies that NP is subset of PP.
 
-TODO : Add algorithm of Walk-SAT
+First, initialize random assignment. Then for given step number, choose one unsatisfied clause, then revert 
+one variable in that clause. 
 
 ### DPLL algorithm
-DPLL algorithm solves SAT problem, but highly tractable. It doesn't break P =!= NP, however it shows good results in many cases. 
+DPLL algorithm solves SAT problem, but highly tractable. It doesn't prove P = NP, though it shows good results in many cases. 
 
-TODO : Add algorithm of DPLL
+First, initialize empty partial assignment. Then first it performs trivial propagations, then choose one 
+unassigned variable, search for two branch.
