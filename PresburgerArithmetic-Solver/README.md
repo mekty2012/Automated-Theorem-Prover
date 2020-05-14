@@ -26,7 +26,7 @@ The solver should output whether sentence is true or false, however can not give
 proof of universal quantifier is not simple. 
 
 If possible, actually, the evidence of universal quantifier is usually given as function, as evidence of forall x, P x is function mapping x to evidence of P x.
-However, I will treat this problem later.
+However, I will treat this problem later. For more explanation on this, see Curry-Howard Correspondence.
 
 For specific algorithm, you can see [here](https://github.com/mekty2012/sumunyeon/blob/master/SeminarProof.pdf).
 

@@ -5,7 +5,7 @@ data class Integer(val n:Int) : PresburgerArithmetic()
 data class Add(val first:PresburgerArithmetic, val second:PresburgerArithmetic) : PresburgerArithmetic()
 
 sealed class PresburgerFormula
-data class Eq(val first:PresburgerArithmetic, val second:PresburgerArithmetic) : PresburgerFormula()
+data class Lt(val first:PresburgerArithmetic, val second:PresburgerArithmetic) : PresburgerFormula()
 data class Div(val n : Int, val multiple:PresburgerArithmetic) : PresburgerFormula()
 data class Neg(val f:PresburgerFormula) : PresburgerFormula()
 data class And(val lf:List<PresburgerFormula>) : PresburgerFormula()
@@ -21,7 +21,7 @@ fun simplify(pa:PresburgerArithmetic) : Map<String?, Int> =
       val first = simplify(pa.first)
       val second = simplify(pa.second)
       val newKeySet = first.keys + second.keys
-      return newKeySet.map{Pair(it, pa.first.getOrDefault(it, 0) + pa.second.getOrDefault(it, 0))}
+      newKeySet.map{Pair(it, first.getOrDefault(it, 0) + second.getOrDefault(it, 0))}.toMap()
     }
   }
 
@@ -34,7 +34,7 @@ fun isClosed(f:PresburgerArithmetic, env:Set<String>) : Boolean =
 
 fun isClosed(f:PresburgerFormula, env:Set<String>) : Boolean =
   when (f) {
-    is Eq -> isClosed(f.first, env) && isClosed(f.second, env)
+    is Lt -> isClosed(f.first, env) && isClosed(f.second, env)
     is Div -> isClosed(f.multiple, env)
     is Neg -> isClosed(f.f, env)
     is And -> f.lf.all{isClosed(it, env)}
@@ -45,7 +45,7 @@ fun isClosed(f:PresburgerFormula, env:Set<String>) : Boolean =
 
 fun isQuantifierFree(f:PresburgerFormula) : Boolean =
   when (f) {
-    is Eq -> true
+    is Lt -> true
     is Div -> true
     is Neg -> isQuantifierFree(f.f)
     is And -> f.lf.all{isQuantifierFree(it)}
@@ -64,7 +64,7 @@ fun compute(f:PresburgerArithmetic) : Int {
 
 fun freeDecide(f:PresburgerFormula) : Boolean {
   return when (f) {
-    is Eq -> compute(f.first) == compute(f.second)
+    is Lt -> compute(f.first) > compute(f.second)
     is Div -> (compute(f.multiple) % f.n) == 0
     is Neg -> !freeDecide(f.f)
     is And -> f.lf.all{freeDecide(it)}
@@ -110,10 +110,52 @@ fun convertDNF(f:PresburgerFormula) : List<List<PresburgerFormula>> {
   }
 }
 
+sealed class SimplifiedArithmetic
+data class SLt(val first:Map<String?, Int>, val second:Map<String?, Int>) : SimplifiedArithmetic()
+data class SDiv(val c:Int, val divided:Map<String?, Int>) : SimplifiedArithmetic()
+data class SNotDiv(val c:Int, val divided:Map<String?, Int>) : SimplifiedArithmetic()
+
 /*
  * This function returns formula that is equivalent to exists x, f, where f is quantifier free formula.
  * The input for f is expected to be DNF form.
  */
 fun equivExist(dnf:List<List<PresburgerFormula>>, x:String) : PresburgerFormula {
+  // Simplifies formula.
+  val simplified = dnf.map{clause:List<PresburgerFormula> ->
+    clause.map{
+      when (it) {
+        is Lt -> SLt(simplify(it.first), simplify(it.second))
+        is Div -> SDiv(it.n, simplify(it.multiple))
+        is Neg -> {
+          when (it.f) {
+            is Lt -> {
+              val first = simplify(it.f.second)
+              SLt(first + (null to first.getOrDefault(null, 1)), simplify(it.f.first))
+            }
+            is Div -> {
+              SNotDiv(it.f.n, simplify(it.f.multiple))
+            }
+            else -> {throw IllegalArgumentException("The formula is Not DNF form.")}
+          }
+        }
+        else -> {throw IllegalArgumentException("The formula is not DNF form.")}
+      }
+    }
+  }
+  // Subtract each other.
+  val subtracted = simplified.map{clause:List<SimplifiedArithmetic> ->
+    clause.map{
+      when (it) {
+        is SLt -> subtractSLt(it.first, it.second)
+        is SDiv -> it
+        is SNotDiv -> it
+      }
+    }
+  }
+
   TODO()
 }
+
+fun subtractSLt(first:Map<String?, Int>, second:Map<String?, Int>):SimplifiedArithmetic =
+  SLt(first.mapValues({it.value - second.getOrDefault(it.key, 0)}).filterValues({it != 0}),
+      second.mapValues({it.value - first.getOrDefault(it.key, 0)}).filterValues({it != 0}))
